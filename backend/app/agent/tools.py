@@ -92,15 +92,27 @@ def log_interaction(hcp_id: str, raw_notes: str, source: str = "chat") -> str:
         if not hcp:
             return json.dumps({"error": f"No HCP found with id {hcp_id}"})
 
+        samples_dropped = extracted.get("samples_dropped", "[]")
+        if isinstance(samples_dropped, (dict, list)):
+            samples_dropped = json.dumps(samples_dropped)
+            
+        topics = extracted.get("topics", "")
+        if isinstance(topics, list):
+            topics = ", ".join(topics)
+
+        products_discussed = extracted.get("products_discussed", "")
+        if isinstance(products_discussed, list):
+            products_discussed = ", ".join(products_discussed)
+
         interaction = models.Interaction(
             hcp_id=hcp_id,
             interaction_type=extracted.get("interaction_type", "Visit"),
             channel=hcp.preferred_channel,
             interaction_date=datetime.datetime.utcnow(),
-            products_discussed=extracted.get("products_discussed", ""),
-            topics=extracted.get("topics", ""),
+            products_discussed=products_discussed,
+            topics=topics,
             sentiment=extracted.get("sentiment", "Neutral"),
-            samples_dropped=extracted.get("samples_dropped", "[]"),
+            samples_dropped=samples_dropped,
             key_takeaways=extracted.get("key_takeaways", ""),
             next_steps=extracted.get("next_steps", ""),
             raw_notes=raw_notes,
@@ -179,7 +191,10 @@ the FULL updated values (unchanged fields copied as-is, changed fields updated).
 
         for key in current_snapshot.keys():
             if key in updated:
-                setattr(interaction, key, updated[key])
+                val = updated[key]
+                if isinstance(val, (dict, list)):
+                    val = json.dumps(val)
+                setattr(interaction, key, val)
 
         db.commit()
         db.refresh(interaction)
